@@ -1,5 +1,7 @@
-CFLAGS=-g -O3 -Wall -Wshadow -Werror -std=c99
+CFLAGS=-g -Wall -Wshadow -Werror -std=c99
 LDFLAGS=
+
+default:	bog search
 
 .PHONY: TAGS clean
 
