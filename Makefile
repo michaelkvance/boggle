@@ -1,4 +1,4 @@
-CFLAGS=-g -O3 -Wall -Wshadow -Werror -std=c99
+CFLAGS=-g -O3 -DNDEBUG -Wall -Wshadow -Werror -std=c99
 LDFLAGS=
 
 default:	bog dict

@@ -2,19 +2,18 @@
 #include <stdlib.h>
 #include <string.h>
 #include <assert.h>
-#include <ctype.h>
 
 #define DICT_NODE_NUM_CHILDREN 26
 
 #define DICT_NODE_FLAG_WORD 0x1
 #define DICT_NODE_FLAG_MARK 0x2
 
-#define DICT_CHILD_IDX(c) (toupper((c)) - 'A')
+#define DICT_CHILD_IDX(c) ((c) - 'A')
 
 #define DAWG_NODE_FLAG_WORD DICT_NODE_FLAG_WORD
 #define DAWG_NODE_FLAG_MARK DICT_NODE_FLAG_MARK
 
-#define DAWG_CHILD_IDX(c) (toupper((c)) - 'A')
+#define DAWG_CHILD_IDX(c) ((c) - 'A')
 
 typedef struct _dict_node_t {
 	int children[DICT_NODE_NUM_CHILDREN];

@@ -143,7 +143,7 @@ boggle_t* boggle_new( void )
 	assert( bog );
 	memset( bog, 0, sizeof( boggle_t ) );
 	dict = dict_new();
-	dict_init_file( dict, "yawl.dict", 600000 );
+	dict_init_file( dict, "/Users/michael/src/boggle/yawl.dict", 600000 );
 	bog->dawg = dawg_new();
 	dict_finalize_to_dawg( dict, bog->dawg );
 	dict_delete( dict );
