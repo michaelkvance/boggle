@@ -1,17 +1,14 @@
-CFLAGS=-g -Wall -Wshadow -Werror -std=c99
+CFLAGS=-g -O3 -Wall -Wshadow -Werror -std=c99
 LDFLAGS=
 
-default:	bog search dict
+default:	bog dict
 
 .PHONY: TAGS clean
 
-bog:	boggle.o main.o
+bog:	boggle.o dict.o boggle-main.o
 	$(CC) -o $@ $(LDFLAGS) $^
 
-search:	search.o
-	$(CC) -o $@ $(LDFLAGS) $^
-
-dict:	dict.o
+dict:	dict.o dict-main.o
 	$(CC) -o $@ $(LDFLAGS) $^
 
 clean:

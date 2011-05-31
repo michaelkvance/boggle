@@ -5,6 +5,8 @@
 #include <time.h>
 #include <assert.h>
 
+#include "dict.h"
+
 #define cassert(expr) extern char (*__c_assert(void)) [sizeof(char[1-2*!(expr)])]
 
 #define BOGGLE_BOARD_WIDTH 4
@@ -29,15 +31,9 @@ typedef enum {
 	BOGGLE_DIR_MAX
 } dir_t;
 
-typedef struct _dict_t {
-	int size;
-	char** words;
-	char* store;
-} dict_t;
-
 typedef struct _boggle_t {
 	char board[BOGGLE_BOARD_HEIGHT][BOGGLE_BOARD_WIDTH];
-	dict_t dict;
+	dawg_t* dawg;
 
 	int verbose;
 	int verbose_thresh;
@@ -78,11 +74,6 @@ static void shuffle( char* cs, size_t n )
 		cs[j] = cs[i];
 		cs[i] = t;
 	}
-}
-
-static void boggle_quit( int r )
-{
-	exit( r );
 }
 
 static void boggle_break( void )
@@ -146,10 +137,16 @@ static void boggle_print_board( boggle_t* bog )
 boggle_t* boggle_new( void )
 {
 	boggle_t* bog;
+	dict_t* dict;
 
 	bog = (boggle_t*) malloc( sizeof( boggle_t ) );
 	assert( bog );
 	memset( bog, 0, sizeof( boggle_t ) );
+	dict = dict_new();
+	dict_init_file( dict, "yawl.dict", 600000 );
+	bog->dawg = dawg_new();
+	dict_finalize_to_dawg( dict, bog->dawg );
+	dict_delete( dict );
 
 	return bog;
 }
@@ -157,120 +154,10 @@ boggle_t* boggle_new( void )
 void boggle_delete( boggle_t* bog )
 {
 	assert( bog );
+	dawg_delete( bog->dawg );
 	free( bog );
 }
 
-static void boggle_init_dict( boggle_t* bog )
-{
-	const char* fname = "yawl.dict";
-	FILE* fp;
-	int nwords;
-	int c;
-	dict_t* dict;
-	int size;
-	char** words;
-	char* store;
-	char token[64];
-	char* parsed;
-	char* flagp;
-	char* storep;
-	int l;
-
-	fp = fopen( fname, "r" );
-
-	if( !fp )
-	{
-		fprintf( stderr, "Fool! Could not open dict '%s'.\n", fname );
-		boggle_quit( -1 );
-	}
-
-	/* count inefficiently, should use mmap but not portable */
-	nwords = 0;
-
-	while( !feof( fp ) )
-	{
-		c = fgetc( fp );
-		nwords += ( c == '\n' ) ? 1 : 0;
-	}
-
-	fseek( fp, SEEK_SET, 0 );
-	dict = &bog->dict;
-
-	size = sizeof( char* ) * ( nwords + 1 );
-	words = (char**) malloc( size );
-	memset( words, 0, size );
-	dict->size = nwords;
-	dict->words = words;
-
-	size = nwords * ( 1 + BOGGLE_MAX_WORD_LENGTH + 1 );
-	store = (char*) malloc( size );
-	memset( store, 0, size );
-	dict->store = store;
-
-	dict->size = 0;
-	storep = store;
-
-	while( !feof( fp ) )
-	{
-		parsed = fgets( token, sizeof( token ), fp );
-
-		if( !parsed )
-		{
-			assert( !ferror( fp ) );
-			break;
-		}
-
-		l = strlen( parsed );
-
-		if( parsed[ l - 1 ] == '\n' )
-		{
-			parsed[ l - 1 ] = 0;
-			l -= 1;
-		}
-
-		if( l < 3 )
-		{
-			continue;
-		}
-
-		flagp = storep;
-		*flagp = 0;
-		storep += 1;
-		strcpy( storep, parsed );
-		dict->words[dict->size] = storep;
-		dict->size += 1;
-		assert( dict->size < nwords );
-		storep += ( l + 1 );
-	}
-
-	fclose( fp );
-}
-
-static void boggle_fini_dict( boggle_t* bog )
-{
-	dict_t* dict;
-
-	dict = &bog->dict;
-
-	free( (void*) dict->store );
-	free( dict->words );
-
-	dict->store = NULL;
-	dict->words = NULL;
-	dict->size = 0;
-}
-
-static int boggle_mark_dict( boggle_t* bog, char* word )
-{
-	int old;
-	char* flagp;
-
-	flagp = word - 1;
-	old = *flagp;
-	*flagp = 1;
-
-	return old;
-}
 
 /*
  * From http://www.boardgamegeek.com/thread/300565/
@@ -347,8 +234,6 @@ void boggle_init( boggle_t* bog )
 	}
 
 	boggle_print_board( bog );
-
-	boggle_init_dict( bog );
 }
 
 void boggle_init_static( boggle_t* bog, const char* cs, int w, int h )
@@ -358,7 +243,6 @@ void boggle_init_static( boggle_t* bog, const char* cs, int w, int h )
 
 	memcpy( bog->board, cs, BOGGLE_BOARD_WIDTH * BOGGLE_BOARD_HEIGHT );
 	boggle_print_board( bog );
-	boggle_init_dict( bog );
 }
 
 void boggle_set_verbose( boggle_t* bog, int verbose, int thresh )
@@ -376,7 +260,7 @@ void boggle_dbg_break( boggle_t* bog, int row, int col )
 
 void boggle_fini( boggle_t* bog )
 {
-	boggle_fini_dict( bog );
+	/* empty */
 }
 
 static void query_init( query_t* query, boggle_t* bog )
@@ -387,7 +271,7 @@ static void query_init( query_t* query, boggle_t* bog )
 
 static void query_fini( query_t* query )
 {
-	/* release anything else needed */
+	/* empty */
 }
 
 static int query_dir_valid( query_t* query, int row, int col, dir_t dir, int* rowo, int* colo )
@@ -430,35 +314,13 @@ static int query_dir_valid( query_t* query, int row, int col, dir_t dir, int* ro
 	return 0;
 }
 
-static int query_word_comp( const void *a, const void* b )
-{
-	return strcmp( (const char*)a, *((const char**)b) );
-}
-
-static char** query_word_valid( query_t* query )
-{
-	char* needle;
-	dict_t* dict;
-	char** haystack;
-	int size;
-	char** found;
-
-	needle = query->stack.letters;
-	dict = &query->bog->dict;
-	haystack = dict->words;
-	size = dict->size;
-	found = (char**) bsearch( needle, haystack, size, sizeof( char** ), query_word_comp );
-
-	return found;
-}
-
 static void boggle_solve_r( query_t* query, int row, int col )
 {
 	dir_t dir;
 	char at;
 	int rowp;
 	int colp;
-	char** found;
+	int found;
 	int marked;
 	int score;
 	int valid;
@@ -473,11 +335,11 @@ static void boggle_solve_r( query_t* query, int row, int col )
 
 	if( query->stack.size >= 3 )
 	{
-		found = query_word_valid( query );
+		found = dawg_find( query->bog->dawg, query->stack.letters );
 
-		if( found )
+		if( found >= 0 )
 		{
-			marked = boggle_mark_dict( query->bog, *found );
+			marked = dawg_mark( query->bog->dawg, found );
 
 			if( marked == 0 )
 			{
