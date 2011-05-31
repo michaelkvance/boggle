@@ -33,8 +33,9 @@ typedef struct _dawg_child_t {
 	unsigned int index : 27;
 } dawg_child_t;
 
+// XXX collapse to one unsinged int?
 typedef struct _dawg_node_t {
-	dawg_child_t* children;
+	unsigned int children;
 	unsigned int count : 5;
 	unsigned int flags : 27;
 } dawg_node_t;
@@ -304,20 +305,20 @@ void dict_finalize_to_dawg( dict_t* dict, dawg_t* dawg )
 		inode = &dict->nodes[i];
 		anode = &dawg->nodes[i];
 
-		children = &dawg->store[dawg->alloced];
-		dawg->alloced += inode->set;
-		anode->children = children;
+		anode->children = dawg->alloced;
 		anode->count = 0;
 		// XXX cassert that flags values are the same
 		anode->flags = inode->flags;
+		dawg->alloced += inode->set;
+		children = &dawg->store[anode->children];
 
 		for( j = 0; j < DICT_NODE_NUM_CHILDREN; j++ )
 		{
 			if( inode->children[j] >= 0 )
 			{
 				assert( anode->count < nonempty );
-				anode->children[anode->count].letter = j;
-				anode->children[anode->count].index = inode->children[j];
+				children[anode->count].letter = j;
+				children[anode->count].index = inode->children[j];
 				anode->count += 1;
 			}
 		}
@@ -330,6 +331,7 @@ static int dawg_find_r( dawg_t* dawg, dawg_node_t* node, const char* word )
 	int idx;
 	int i;
 	dawg_node_t* child;
+	dawg_child_t* children;
 
 	c = *word;
 
@@ -339,12 +341,13 @@ static int dawg_find_r( dawg_t* dawg, dawg_node_t* node, const char* word )
 	}
 
 	idx = -1;
+	children = &dawg->store[node->children];
 
 	for( i = 0; i < node->count; i++ )
 	{
-		if ( node->children[i].letter == DAWG_CHILD_IDX(c) )
+		if (children[i].letter == DAWG_CHILD_IDX(c) )
 		{
-			idx = node->children[i].index;
+			idx = children[i].index;
 			break;
 		}
 	}
