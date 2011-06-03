@@ -17,6 +17,8 @@ dawg_t* dawg_new();
 void dawg_delete( dawg_t* dawg );
 int dawg_find( dawg_t* dawg, const char* needle );
 int dawg_mark( dawg_t* dawg, int idx );
+int dawg_root( dawg_t* dawg );
+int dawg_child( dawg_t* dawg, int idx, char c );
 
 void dict_finalize_to_dawg( dict_t* dict, dawg_t* dawg );
 

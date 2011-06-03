@@ -51,6 +51,7 @@ typedef struct _query_answers_t {
 typedef struct _query_stack_t {
 	int size;
 	char letters[BOGGLE_MAX_WORD_LENGTH + 1];
+	int indices[BOGGLE_MAX_WORD_LENGTH + 1];
 } query_stack_t;
 
 typedef struct _query_t {
@@ -267,6 +268,7 @@ static void query_init( query_t* query, boggle_t* bog )
 {
 	memset( query, 0, sizeof( query_t ) );
 	query->bog = bog;
+	query->stack.indices[0] = dawg_root( bog->dawg );
 }
 
 static void query_fini( query_t* query )
@@ -324,6 +326,8 @@ static void boggle_solve_r( query_t* query, int row, int col )
 	int marked;
 	int score;
 	int valid;
+	int pidx;
+	int idx;
 
 	assert( row < BOGGLE_BOARD_HEIGHT );
 	assert( col < BOGGLE_BOARD_WIDTH );
@@ -332,6 +336,14 @@ static void boggle_solve_r( query_t* query, int row, int col )
 	query->stack.letters[query->stack.size] = at;
 	query->stack.size += 1;
 	query->fill[row][col] = at;
+
+	pidx = query->stack.indices[query->stack.size - 1];
+	idx = dawg_child( query->bog->dawg, pidx, at );
+
+	if( idx < 0 )
+		goto done;
+
+	query->stack.indices[query->stack.size] = idx;
 
 	if( query->stack.size >= 3 )
 	{
@@ -371,6 +383,7 @@ static void boggle_solve_r( query_t* query, int row, int col )
 		}
 	}
 
+ done:
 	assert( row < BOGGLE_BOARD_HEIGHT );
 	assert( col < BOGGLE_BOARD_WIDTH );
 	query->fill[row][col] = 0;
@@ -413,10 +426,11 @@ void boggle_solve( boggle_t* bog )
 
 	for( i = 0; i < BOGGLE_MAX_WORD_LENGTH; ++i )
 	{
-		if ( !query.answers.counts[i] )
+		if( !query.answers.counts[i] )
 		{
 			continue;
 		}
+
 		count = query.answers.counts[i];
 		score = query.answers.scores[i];
 		printf( "%8d %2d-letter words (%4d points)\n", count, i, score );

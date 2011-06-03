@@ -383,3 +383,31 @@ int dawg_mark( dawg_t* dawg, int idx )
 
 	return ( old & DAWG_NODE_FLAG_MARK );
 }
+
+int dawg_root( dawg_t* dawg )
+{
+	return dawg->root;
+}
+
+int dawg_child( dawg_t* dawg, int idx, char c )
+{
+	int child;
+	dawg_node_t* node;
+	dawg_child_t* children;
+	int i;
+
+	node = &dawg->nodes[idx];
+	children = &dawg->store[node->children];
+	child = -1;
+
+	for( i = 0; i < node->count; i++ )
+	{
+		if( children[i].letter == DAWG_CHILD_IDX(c) )
+		{
+			child = children[i].index;
+			break;
+		}
+	}
+
+	return child;
+}

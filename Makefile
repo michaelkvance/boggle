@@ -1,11 +1,11 @@
 CFLAGS=-g -O3 -DNDEBUG -Wall -Wshadow -Werror -std=c99
 LDFLAGS=
 
-default:	bog dict
+default:	boggle dict
 
 .PHONY: TAGS clean
 
-bog:	boggle.o dict.o boggle-main.o
+boggle:	boggle.o dict.o boggle-main.o
 	$(CC) -o $@ $(LDFLAGS) $^
 
 dict:	dict.o dict-main.o
