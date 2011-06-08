@@ -15,6 +15,8 @@
 
 #define DAWG_CHILD_IDX(c) ((c) - 'A')
 
+#define DAWG_NODE_CHILDLESS 0xfffff
+
 typedef struct _dict_node_t {
 	int children[DICT_NODE_NUM_CHILDREN];
 	unsigned int set;
@@ -26,26 +28,22 @@ typedef struct _dict_t {
 	unsigned int size;
 	unsigned int avail;
 	unsigned int root;
+	unsigned int heap;
 } dict_t;
 
-typedef struct _dawg_child_t {
-	unsigned int letter : 5;
-	unsigned int index : 27;
-} dawg_child_t;
-
-// XXX collapse to one unsinged int?
 typedef struct _dawg_node_t {
-	unsigned int children;
-	unsigned int count : 5;
-	unsigned int flags : 27;
+	unsigned int letter : 5;
+	unsigned int flags : 2;
+	unsigned int childcnt : 5;
+	unsigned int childidx : 20;
 } dawg_node_t;
 
 typedef struct _dawg_t {
 	dawg_node_t* nodes;
 	unsigned int size;
+	unsigned int avail;
 	unsigned int root;
-	dawg_child_t* store;
-	unsigned int alloced;
+	unsigned int heap;
 } dawg_t;
 
 dict_t* dict_new( void )
@@ -54,6 +52,7 @@ dict_t* dict_new( void )
 
 	dict = (dict_t*)malloc( sizeof( dict_t ) );
 	memset( dict, 0, sizeof( dict_t ) );
+	dict->heap += sizeof( dict_t );
 
 	return dict;
 }
@@ -192,6 +191,7 @@ void dict_init_file( dict_t* dict, const char* filename, int hint )
 	assert( dict->avail == 0 );
 	dict->size = hint;
 	dict->nodes = (dict_node_t*)malloc( dict->size * sizeof( dict_node_t ) );
+	dict->heap += dict->size * sizeof( dict_node_t );
 	dict->root = 0;
 	dict_node_init( dict, &dict->nodes[dict->root] );
 	dict->avail += 1;
@@ -233,6 +233,7 @@ void dict_analyze( dict_t* dict )
 	int i;
 	int nonempty;
 
+	printf( "dict->heap = %d\n", dict->heap );
 	printf( "dict->size = %d (%ld) dict->avail = %d (%ld)\n", dict->size, dict->size * sizeof( dict_node_t ), dict->avail, dict->avail * sizeof( dict_node_t ) );
 
 	nonempty = 0;
@@ -268,25 +269,58 @@ dawg_t* dawg_new( void )
 
 	dawg = (dawg_t*)malloc( sizeof( dawg_t ) );
 	memset( dawg, 0, sizeof( dawg_t ) );
+	dawg->heap += sizeof( dawg_t );
 
 	return dawg;
 }
 
 void dawg_delete( dawg_t *dawg )
 {
-	free( dawg->store );
 	free( dawg->nodes );
 	free( dawg );
 }
 
+void dict_finalize_to_dawg_r( dict_t* dict, dict_node_t* inode, dawg_t* dawg, dawg_node_t* anode )
+{
+	unsigned int i;
+	dict_node_t* ichild;
+	dawg_node_t* achild;
+
+	anode->childidx = dawg->avail;
+
+	for( i = 0; i < DICT_NODE_NUM_CHILDREN; i++ )
+	{
+		if( inode->children[i] >= 0 )
+		{
+			achild = &dawg->nodes[dawg->avail++];
+			assert( dawg->avail <= dawg->size );
+			achild->letter = i;
+			achild->flags = dict->nodes[inode->children[i]].flags;
+			anode->childcnt += 1;
+		}
+	}
+
+	assert( anode->childcnt == inode->set );
+
+	if( anode->childcnt == 0 )
+	{
+		anode->childidx = DAWG_NODE_CHILDLESS;
+		return;
+	}
+
+	for( i = 0; i < anode->childcnt; i++ )
+	{
+		achild = &dawg->nodes[anode->childidx + i];
+		ichild = &dict->nodes[inode->children[achild->letter]];
+		dict_finalize_to_dawg_r( dict, ichild, dawg, achild );
+	}
+}
+
 void dict_finalize_to_dawg( dict_t* dict, dawg_t* dawg )
 {
-	int i;
-	int nonempty;
+	unsigned int i;
 	dict_node_t* inode;
-	dawg_node_t* anode;
-	int j;
-	dawg_child_t* children;
+	unsigned int nonempty;
 
 	for( i = 0; i < dict->avail; i++ )
 	{
@@ -296,71 +330,42 @@ void dict_finalize_to_dawg( dict_t* dict, dawg_t* dawg )
 
 	dawg->size = dict->avail;
 	dawg->nodes = (dawg_node_t*)malloc( sizeof( dawg_node_t ) * dawg->size );
+	memset( dawg->nodes, 0, sizeof( dawg_node_t ) * dawg->size );
+	dawg->heap += sizeof( dawg_node_t ) * dawg->size;
 	dawg->root = 0;
-	dawg->store = (dawg_child_t*)malloc( sizeof( dawg_child_t ) * nonempty );
-	dawg->alloced = 0;
+	dawg->avail += 1;
 
-	for( i = 0; i < dict->avail; i++ )
-	{
-		inode = &dict->nodes[i];
-		anode = &dawg->nodes[i];
-
-		anode->children = dawg->alloced;
-		anode->count = 0;
-		// XXX cassert that flags values are the same
-		anode->flags = inode->flags;
-		dawg->alloced += inode->set;
-		children = &dawg->store[anode->children];
-
-		for( j = 0; j < DICT_NODE_NUM_CHILDREN; j++ )
-		{
-			if( inode->children[j] >= 0 )
-			{
-				assert( anode->count < nonempty );
-				children[anode->count].letter = j;
-				children[anode->count].index = inode->children[j];
-				anode->count += 1;
-			}
-		}
-	}
+	dict_finalize_to_dawg_r( dict, &dict->nodes[dict->root], dawg, &dawg->nodes[dawg->root] );
 }
 
 static int dawg_find_r( dawg_t* dawg, dawg_node_t* node, const char* word )
 {
 	char c;
-	int idx;
-	int i;
+	unsigned int i;
+	dawg_node_t* children;
 	dawg_node_t* child;
-	dawg_child_t* children;
 
 	c = *word;
 
 	if( c == '\0' )
-	{
-		return ( node->flags & DAWG_NODE_FLAG_WORD ) ? node - dawg->nodes : -1;
-	}
+		return node->flags & DAWG_NODE_FLAG_WORD ? node - dawg->nodes : -1;
 
-	idx = -1;
-	children = &dawg->store[node->children];
+	children = &dawg->nodes[node->childidx];
+	child = NULL;
 
-	for( i = 0; i < node->count; i++ )
+	for( i = 0; i < node->childcnt; i++ )
 	{
-		if (children[i].letter == DAWG_CHILD_IDX(c) )
+		if ( children[i].letter == DAWG_CHILD_IDX(c) )
 		{
-			idx = children[i].index;
+			child = &children[i];
 			break;
 		}
 	}
 
-	if( idx < 0 )
-	{
-		return -1;
-	}
-	else
-	{
-		child = &dawg->nodes[idx];
+	if ( child )
 		return dawg_find_r( dawg, child, word + 1 );
-	}
+	else
+		return -1;
 }
 
 int dawg_find( dawg_t* dawg, const char* word, int mark )
@@ -393,21 +398,27 @@ int dawg_child( dawg_t* dawg, int idx, char c )
 {
 	int child;
 	dawg_node_t* node;
-	dawg_child_t* children;
+	dawg_node_t* children;
 	int i;
 
 	node = &dawg->nodes[idx];
-	children = &dawg->store[node->children];
+	children = &dawg->nodes[node->childidx];
 	child = -1;
 
-	for( i = 0; i < node->count; i++ )
+	for( i = 0; i < node->childcnt; i++ )
 	{
 		if( children[i].letter == DAWG_CHILD_IDX(c) )
 		{
-			child = children[i].index;
+			child = &children[i] - dawg->nodes;
 			break;
 		}
 	}
 
 	return child;
+}
+
+void dawg_analyze( dawg_t* dawg )
+{
+	printf( "dawg->heap = %d\n", dawg->heap );
+	printf( "dawg->size = %d, dawg->avail = %d\n", dawg->size, dawg->avail );
 }

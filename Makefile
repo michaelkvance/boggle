@@ -1,4 +1,4 @@
-CFLAGS=-g -O3 -DNDEBUG -Wall -Wshadow -Werror -std=c99
+CFLAGS=-g -O3 -DNDEBUG -Wall -Wextra -Wshadow -pedantic -Wno-unused-parameter -Wno-sign-compare -Werror -std=c99
 LDFLAGS=
 
 default:	boggle dict
