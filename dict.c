@@ -3,6 +3,8 @@
 #include <string.h>
 #include <assert.h>
 
+#include "dict.h"
+
 #define DICT_NODE_NUM_CHILDREN 26
 
 #define DICT_NODE_FLAG_WORD 0x1
@@ -23,13 +25,13 @@ typedef struct _dict_node_t {
 	unsigned int flags;
 } dict_node_t;
 
-typedef struct _dict_t {
+struct _dict_t {
 	dict_node_t* nodes;
 	unsigned int size;
 	unsigned int avail;
 	unsigned int root;
 	unsigned int heap;
-} dict_t;
+};
 
 typedef struct _dawg_node_t {
 	unsigned int letter : 5;
@@ -38,13 +40,13 @@ typedef struct _dawg_node_t {
 	unsigned int childidx : 20;
 } dawg_node_t;
 
-typedef struct _dawg_t {
+struct _dawg_t {
 	dawg_node_t* nodes;
 	unsigned int size;
 	unsigned int avail;
 	unsigned int root;
 	unsigned int heap;
-} dawg_t;
+};
 
 dict_t* dict_new( void )
 {
@@ -142,7 +144,7 @@ static int dict_find_r( dict_t* dict, dict_node_t* node, const char* word )
 	}
 }
 
-int dict_find( dict_t* dict, const char* word, int mark )
+int dict_find( dict_t* dict, const char* word )
 {
 	dict_node_t* node;
 
@@ -368,7 +370,7 @@ static int dawg_find_r( dawg_t* dawg, dawg_node_t* node, const char* word )
 		return -1;
 }
 
-int dawg_find( dawg_t* dawg, const char* word, int mark )
+int dawg_find( dawg_t* dawg, const char* word )
 {
 	dawg_node_t* node;
 

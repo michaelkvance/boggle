@@ -2,6 +2,7 @@
 
 #include <stdlib.h>
 #include <stdio.h>
+#include <time.h>
 #include <mach/mach_time.h>
 
 static mach_timebase_info_data_t tb_info;
@@ -37,7 +38,7 @@ void print_scores( int* counts, int* scores )
 	total_count = 0;
 	total_score = 0;
 
-	for( i = 0; i < 17; i++ )
+	for( i = 0; i < BOGGLE_MAX_WORD_LENGTH; i++ )
 	{
 		if ( !counts[i] )
 			continue;
@@ -64,14 +65,12 @@ int main( int argc, char* argv[] )
 	uint64_t then;
 	uint64_t now;
 	uint64_t delta;
-	int counts[17];
-	int scores[17];
+	int counts[BOGGLE_MAX_WORD_LENGTH];
+	int scores[BOGGLE_MAX_WORD_LENGTH];
 
 	timer_init();
-	/* constant seed for debug-ability */
 	srand( 0xDEADBEEF );
-	/* random seed */
-	/* srand( time( NULL ) ); */
+	/*srand( time( NULL ) );*/
 
 	bog = boggle_new();
 	boggle_init_static( bog, test, 4, 4 );

@@ -5,17 +5,10 @@
 #include <time.h>
 #include <assert.h>
 
+#include "boggle.h"
 #include "dict.h"
 
 #define cassert(expr) extern char (*__c_assert(void)) [sizeof(char[1-2*!(expr)])]
-
-#define BOGGLE_BOARD_WIDTH 4
-#define BOGGLE_BOARD_HEIGHT 4
-#define BOGGLE_ALPHABET_SIZE 26
-#define BOGGLE_NUM_DICE (BOGGLE_BOARD_WIDTH * BOGGLE_BOARD_HEIGHT)
-#define BOGGLE_MAX_WORD_LENGTH (BOGGLE_NUM_DICE + 1)
-#define BOGGLE_NUM_DICE_SIDES 6
-#define BOGGLE_NUM_LETTERS (BOGGLE_NUM_DICE_SIDES * BOGGLE_NUM_DICE)
 
 typedef enum {
 	BOGGLE_DIR_FIRST = 0,
@@ -31,7 +24,7 @@ typedef enum {
 	BOGGLE_DIR_MAX
 } dir_t;
 
-typedef struct _boggle_t {
+struct _boggle_t {
 	char board[BOGGLE_BOARD_HEIGHT][BOGGLE_BOARD_WIDTH];
 	dawg_t* dawg;
 
@@ -43,7 +36,7 @@ typedef struct _boggle_t {
 	int debug_row;
 	int debug_col;
 #endif
-} boggle_t;
+};
 
 typedef struct _query_answers_t {
 	int scores[BOGGLE_MAX_WORD_LENGTH];
