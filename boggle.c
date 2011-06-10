@@ -35,12 +35,14 @@ typedef struct _boggle_t {
 	char board[BOGGLE_BOARD_HEIGHT][BOGGLE_BOARD_WIDTH];
 	dawg_t* dawg;
 
+#ifndef NDEBUG
 	int verbose;
 	int verbose_thresh;
 
 	int debug;
 	int debug_row;
 	int debug_col;
+#endif
 } boggle_t;
 
 typedef struct _query_answers_t {
@@ -77,10 +79,12 @@ static void shuffle( char* cs, size_t n )
 	}
 }
 
+#ifndef NDEBUG
 static void boggle_break( void )
 {
 	__asm__ volatile( "int $3\n" );
 }
+#endif
 
 static int boggle_score( const char* word )
 {
@@ -248,15 +252,19 @@ void boggle_init_static( boggle_t* bog, const char* cs, int w, int h )
 
 void boggle_set_verbose( boggle_t* bog, int verbose, int thresh )
 {
+#ifndef NDEBUG
 	bog->verbose = verbose;
 	bog->verbose_thresh = thresh;
+#endif
 }
 
 void boggle_dbg_break( boggle_t* bog, int row, int col )
 {
+#ifndef NDEBUG
 	bog->debug = 1;
 	bog->debug_row = row;
 	bog->debug_col = col;
+#endif
 }
 
 void boggle_fini( boggle_t* bog )
@@ -356,19 +364,23 @@ static void boggle_solve_r( query_t* query, int row, int col )
 			if( marked == 0 )
 			{
 				score = boggle_score( query->stack.letters );
+#ifndef NDEBUG
 				if( query->bog->verbose && query->stack.size >= query->bog->verbose_thresh )
 				{
 					printf( "found valid word '%s' (%d)\n", query->stack.letters, score );
 				}
+#endif
 				query->answers.counts[query->stack.size] += 1;
 				query->answers.scores[query->stack.size] += score;
 			}
 			else
 			{
+#ifndef NDEBUG
 				if( query->bog->verbose )
 				{
 					printf( "found valid word '%s' but skipping as already counted\n", query->stack.letters );
 				}
+#endif
 			}
 		}
 	}
@@ -392,16 +404,12 @@ static void boggle_solve_r( query_t* query, int row, int col )
 	query->stack.letters[query->stack.size] = 0;
 }
 
-void boggle_solve( boggle_t* bog )
+void boggle_solve( boggle_t* bog, int* counts, int* scores )
 {
 	query_t query;
 	int row;
 	int col;
 	int i;
-	int count;
-	int score;
-	int total_count;
-	int total_score;
 
 	query_init( &query, bog );
 
@@ -409,6 +417,7 @@ void boggle_solve( boggle_t* bog )
 	{
 		for( col = 0; col < BOGGLE_BOARD_WIDTH; ++col )
 		{
+#ifndef NDEBUG
 			if( bog->debug )
 			{
 				if( bog->debug_row == row && bog->debug_col == col )
@@ -416,29 +425,17 @@ void boggle_solve( boggle_t* bog )
 					boggle_break();
 				}
 			}
+#endif
 
 			boggle_solve_r( &query, row, col );
 		}
 	}
 
-	total_count = 0;
-	total_score = 0;
-
 	for( i = 0; i < BOGGLE_MAX_WORD_LENGTH; ++i )
 	{
-		if( !query.answers.counts[i] )
-		{
-			continue;
-		}
-
-		count = query.answers.counts[i];
-		score = query.answers.scores[i];
-		printf( "%8d %2d-letter words (%4d points)\n", count, i, score );
-		total_count += count;
-		total_score += score;
+		counts[i] = query.answers.counts[i];
+		scores[i] = query.answers.scores[i];
 	}
-
-	printf( "%8d total points, %4d total words.\n", total_score, total_count );
 
 	query_fini( &query );
 }
