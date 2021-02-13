@@ -324,6 +324,8 @@ void dict_finalize_to_dawg( dict_t* dict, dawg_t* dawg )
 	dict_node_t* inode;
 	unsigned int nonempty;
 
+	nonempty = 0;
+
 	for( i = 0; i < dict->avail; i++ )
 	{
 		inode = &dict->nodes[i];
